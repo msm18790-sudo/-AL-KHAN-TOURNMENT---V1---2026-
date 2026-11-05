@@ -1,0 +1,10 @@
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict'),crypto=require('node:crypto').webcrypto;
+const code=fs.readFileSync(__dirname+'/index.html','utf8').match(/<script>([\s\S]*?)<\/script>/)[1];
+const el={innerHTML:'',textContent:'',classList:{add(){},remove(){}}};
+const ctx=vm.createContext({crypto,structuredClone,document:{querySelector:()=>el,addEventListener(){}},localStorage:{getItem:()=>null,setItem(){}},setTimeout,clearTimeout});
+vm.runInContext(code,ctx);
+vm.runInContext(`
+for(let n=2;n<=64;n++){const ids=Array.from({length:n},(_,i)=>'t'+i);const ms=pairings(ids,'g');if(ms.length!==n*(n-1)/2)throw Error('match count '+n);const pairs=new Set(ms.map(m=>[m.home,m.away].sort().join(':')));if(pairs.size!==ms.length)throw Error('duplicate pair');for(let r=1;r<=n;r++){const teams=ms.filter(m=>m.round===r).flatMap(m=>[m.home,m.away]);if(new Set(teams).size!==teams.length)throw Error('round conflict');}}
+const s=fresh();s.teams=[{id:'a',name:'A'},{id:'b',name:'B'},{id:'c',name:'C'}];s.groups=[{id:'g',teams:['a','b','c']}];s.matches=pairings(['a','b','c'],'g');s.drawAt=new Date().toISOString();validate(s);s.matches=[{id:'m1',group:'g',home:'a',away:'b',round:1,a:2,b:0,date:''},{id:'m2',group:'g',home:'b',away:'c',round:2,a:1,b:1,date:''},{id:'m3',group:'g',home:'c',away:'a',round:3,a:0,b:0,date:''}];const rows=standings(s,['a','b','c']);if(rows[0].id!=='a'||rows[0].pts!==4||rows[1].id!=='c'||rows[1].pts!==2||rows[2].pts!==1)throw Error('standings');validate(JSON.parse(JSON.stringify(s)));const bad=structuredClone(s);bad.matches[0].a=-1;let rejected=false;try{validate(bad)}catch(e){rejected=true}if(!rejected)throw Error('bad score accepted');const dupe=structuredClone(s);dupe.groups[0].teams=['a','b','b'];rejected=false;try{validate(dupe)}catch(e){rejected=true}if(!rejected)throw Error('bad group accepted');
+`,ctx);
+console.log('PASS: pairings for 2–64 teams, no duplicate opponents or round conflicts, standings, backup roundtrip and malformed backup rejection.');
